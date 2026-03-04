@@ -1,0 +1,52 @@
+name: Build and Deploy
+
+on:
+  schedule:
+    - cron: "30 19 * * *" # 19:30 UTC = 1:00 AM IST
+  workflow_dispatch:
+
+permissions:
+  pages: write
+  id-token: write
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Fetch contribution data
+        run: bash fetch_contributions.sh 2015 $(date +%Y)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Generate site
+        run: uv run generate_site.py
+
+      - name: Generate infographic
+        run: uv run generate_infographic.py --from 2015 --to $(date +%Y)
+
+      - name: Prepare deploy directory
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp contribution_timeline.png _site/
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

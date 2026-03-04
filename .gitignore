@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+.playwright-mcp/
+data/
+index.html
+contribution_timeline.png
+site_preview.png
+site_wide.png
+_site/
