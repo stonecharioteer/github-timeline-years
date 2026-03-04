@@ -43,6 +43,7 @@ jobs:
           mkdir -p _site
           cp index.html _site/
           cp contribution_timeline.png _site/
+          echo "git.stonecharioteer.com" > _site/CNAME
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
