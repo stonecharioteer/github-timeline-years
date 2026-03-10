@@ -91,7 +91,7 @@ def main():
     parser.add_argument("--to", dest="to_year", type=int, default=current_year)
     args = parser.parse_args()
 
-    years = list(range(args.from_year, args.to_year + 1))
+    years = list(range(args.to_year, args.from_year - 1, -1))
     grids, all_days, totals = [], [], []
     for year in years:
         cal = load_year(year)
@@ -115,7 +115,7 @@ def main():
     row_h = grid_height_inch + 0.6  # grid + padding for labels
     header_h = 2.2
     bar_h = 2.0
-    footer_h = 0.6
+    footer_h = 1.2
     fig_h = header_h + n * row_h + bar_h + footer_h
     axes_height_frac = grid_height_inch / fig_h
 
@@ -251,17 +251,20 @@ def main():
     bar_ax = fig.add_axes([0.06, bar_bottom + 0.1 / fig_h, 0.88, bar_h / fig_h * 0.75])
     bar_ax.set_facecolor(BG_CANVAS)
 
-    bar_colors = [GREEN_ACCENT if t == max_total else "#26a641" if t > grand_total / n else "#006d32" for t in totals]
-    bars = bar_ax.bar(range(n), totals, color=bar_colors, width=0.7, edgecolor="none", alpha=0.85)
+    # Bar chart uses chronological order (oldest to newest, left to right)
+    bar_years = list(reversed(years))
+    bar_totals = list(reversed(totals))
+    bar_colors = [GREEN_ACCENT if t == max_total else "#26a641" if t > grand_total / n else "#006d32" for t in bar_totals]
+    bars = bar_ax.bar(range(n), bar_totals, color=bar_colors, width=0.7, edgecolor="none", alpha=0.85)
 
-    for i, (bar, total) in enumerate(zip(bars, totals)):
+    for i, (bar, total) in enumerate(zip(bars, bar_totals)):
         if total > 0:
             bar_ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + max_total * 0.02,
                         f"{total:,}", ha="center", va="bottom", fontsize=6.5,
                         color=TEXT_SECONDARY, fontfamily="monospace")
 
     bar_ax.set_xticks(range(n))
-    bar_ax.set_xticklabels([str(y) for y in years], fontsize=7, color=TEXT_SECONDARY, fontfamily="monospace")
+    bar_ax.set_xticklabels([str(y) for y in bar_years], fontsize=7, color=TEXT_SECONDARY, fontfamily="monospace")
     bar_ax.set_yticks([])
     bar_ax.tick_params(axis="x", length=0, pad=4)
     bar_ax.spines["top"].set_visible(False)
@@ -281,6 +284,10 @@ def main():
         )
         fig.patches.append(rect)
     fig.text(0.45 + 5 * 0.02, legend_y, "More", fontsize=6, color=TEXT_MUTED, fontfamily="monospace", va="center")
+
+    # ── GitHub repo link ──
+    fig.text(0.5, legend_y - 0.025, "github.com/stonecharioteer/github-timeline-years",
+             fontsize=7, color=TEXT_SECONDARY, fontfamily="monospace", va="center", ha="center")
 
     plt.savefig(OUTPUT, dpi=200, bbox_inches="tight", facecolor=BG_CANVAS, pad_inches=0.4)
     print(f"Saved infographic to {OUTPUT}")

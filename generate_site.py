@@ -183,12 +183,12 @@ def build_year_html(year: str, cal: dict, max_total: int) -> str:
 
 
 def generate_html(data: dict, stats: dict, repo_by_date: dict | None = None) -> str:
-    years = sorted(data.keys())
+    years = sorted(data.keys(), reverse=True)
     max_total = max(data[y]["totalContributions"] for y in years)
     nav_links = " ".join(f'<a href="#y{y}">{y}</a>' for y in years)
     year_sections = "\n".join(build_year_html(y, data[y], max_total) for y in years)
-    from_year = years[0]
-    to_year = years[-1]
+    from_year = years[-1]
+    to_year = years[0]
     num_years = len(years)
     repo_json = json.dumps(repo_by_date or {}, separators=(",", ":"))
 
@@ -606,6 +606,15 @@ footer {{
   font-weight: 300;
 }}
 
+footer a {{
+  transition: color 0.2s ease, border-color 0.2s ease;
+}}
+
+footer a:hover {{
+  color: var(--green-3);
+  border-color: var(--green-2);
+}}
+
 @keyframes fadeUp {{
   from {{ opacity: 0; transform: translateY(16px); }}
   to   {{ opacity: 1; transform: translateY(0); }}
@@ -706,6 +715,7 @@ footer {{
   <footer>
     <p><a href="contribution_timeline.png" download style="color:var(--green-3);text-decoration:none;border-bottom:1px solid var(--green-1);">Download Infographic</a></p>
     <p style="margin-top:0.5rem;">Data fetched via GitHub GraphQL API &middot; Includes private contributions</p>
+    <p style="margin-top:0.5rem;"><a href="https://github.com/stonecharioteer/github-timeline-years" style="color:var(--text-secondary);text-decoration:none;border-bottom:1px solid var(--border-default);">View source on GitHub</a></p>
   </footer>
 </div>
 
