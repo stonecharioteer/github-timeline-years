@@ -730,17 +730,31 @@ const observer = new IntersectionObserver((entries) => {{
 }}, {{ threshold: 0.1 }});
 document.querySelectorAll('.year-section').forEach(el => observer.observe(el));
 
-// Active nav tracking
+// Active nav tracking — always highlight the topmost visible section
 const navLinks = document.querySelectorAll('.year-nav a');
+const visibleSections = new Set();
+const allSections = [...document.querySelectorAll('.year-section')];
+
+function updateActiveNav() {{
+  for (const section of allSections) {{
+    if (visibleSections.has(section.id)) {{
+      navLinks.forEach(link => {{
+        link.classList.toggle('active', link.getAttribute('href') === '#' + section.id);
+      }});
+      return;
+    }}
+  }}
+}}
+
 const navObserver = new IntersectionObserver((entries) => {{
   entries.forEach(entry => {{
     if (entry.isIntersecting) {{
-      const id = entry.target.id;
-      navLinks.forEach(link => {{
-        link.classList.toggle('active', link.getAttribute('href') === '#' + id);
-      }});
+      visibleSections.add(entry.target.id);
+    }} else {{
+      visibleSections.delete(entry.target.id);
     }}
   }});
+  updateActiveNav();
 }}, {{ threshold: 0.3 }});
 document.querySelectorAll('.year-section').forEach(el => navObserver.observe(el));
 
