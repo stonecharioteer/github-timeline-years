@@ -95,13 +95,27 @@ def compute_stats(data: dict) -> dict:
                     current_streak = 0
 
     total_days = len(all_daily_counts)
-    avg_per_day = grand_total / total_days if total_days else 0
-    avg_on_active = statistics.mean(nonzero_counts) if nonzero_counts else 0
+    median_per_day = statistics.median(all_daily_counts) if all_daily_counts else 0
     median_on_active = statistics.median(nonzero_counts) if nonzero_counts else 0
 
     weekday_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     busiest_dow_idx = max(weekday_totals, key=weekday_totals.get)
     busiest_dow = weekday_names[busiest_dow_idx]
+
+    # Recent activity: last 3 months
+    today = date.today()
+    cutoff = today.replace(month=today.month - 3) if today.month > 3 else today.replace(
+        year=today.year - 1, month=today.month + 9)
+    recent_counts = []
+    for cal in data.values():
+        for week in cal["weeks"]:
+            for day in week["contributionDays"]:
+                dt = datetime.strptime(day["date"], "%Y-%m-%d").date()
+                if dt >= cutoff and dt <= today:
+                    recent_counts.append(day["contributionCount"])
+    recent_total = len(recent_counts)
+    recent_active = sum(1 for c in recent_counts if c > 0)
+    recent_active_pct = round(recent_active / recent_total * 100, 1) if recent_total else 0
 
     return {
         "grand_total": grand_total,
@@ -111,11 +125,10 @@ def compute_stats(data: dict) -> dict:
         "longest_streak": longest_streak,
         "active_days": active_days,
         "total_days": total_days,
-        "avg_per_day": round(avg_per_day, 1),
-        "avg_on_active": round(avg_on_active, 1),
+        "median_per_day": median_per_day,
         "median_on_active": round(median_on_active, 1),
         "busiest_dow": busiest_dow,
-        "active_pct": round(active_days / total_days * 100, 1) if total_days else 0,
+        "recent_active_pct": recent_active_pct,
     }
 
 
@@ -677,20 +690,20 @@ footer a:hover {{
       <div class="stat-label">Active Days</div>
     </div>
     <div class="stat">
-      <div class="stat-value">{stats['avg_per_day']}</div>
-      <div class="stat-label">Avg / Day</div>
+      <div class="stat-value">{stats['median_per_day']}</div>
+      <div class="stat-label">Median / Day</div>
     </div>
     <div class="stat">
-      <div class="stat-value">{stats['avg_on_active']}</div>
-      <div class="stat-label">Avg on Active Days</div>
+      <div class="stat-value">{stats['median_on_active']}</div>
+      <div class="stat-label">Median on Active Days</div>
     </div>
     <div class="stat">
       <div class="stat-value text">{stats['busiest_dow']}</div>
       <div class="stat-label">Busiest Day of Week</div>
     </div>
     <div class="stat">
-      <div class="stat-value">{stats['active_pct']}%</div>
-      <div class="stat-label">Days Active</div>
+      <div class="stat-value">{stats['recent_active_pct']}%</div>
+      <div class="stat-label">Active (last 3 months)</div>
     </div>
   </div>
 
