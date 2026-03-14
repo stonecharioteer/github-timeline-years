@@ -77,6 +77,7 @@ def compute_stats(data: dict) -> dict:
     all_daily_counts = []
     nonzero_counts = []
     weekday_totals = Counter()  # 0=Mon ... 6=Sun
+    last_active_date = None
 
     for cal in data.values():
         for week in cal["weeks"]:
@@ -91,6 +92,9 @@ def compute_stats(data: dict) -> dict:
                     nonzero_counts.append(c)
                     current_streak += 1
                     longest_streak = max(longest_streak, current_streak)
+                    d = dt.date()
+                    if last_active_date is None or d > last_active_date:
+                        last_active_date = d
                 else:
                     current_streak = 0
 
@@ -142,6 +146,7 @@ def compute_stats(data: dict) -> dict:
         "year_active_pct": year_active_pct,
         "busiest_dow": busiest_dow,
         "recent_active_pct": recent_active_pct,
+        "last_active": last_active_date.isoformat() if last_active_date else "N/A",
     }
 
 
@@ -200,10 +205,12 @@ def build_year_html(year: str, cal: dict, max_total: int) -> str:
         <span class="year-total"><strong>{total:,}</strong> contributions</span>
         <div class="year-bar" style="width:200px"><div class="year-bar-inner" style="width:{bar_pct:.1f}%"></div></div>
       </div>
-      <div class="month-labels">{month_row}</div>
-      <div class="grid-wrapper">
-        <div class="day-labels">{day_labels_html}</div>
-        <div class="grid">{"".join(cols_html)}</div>
+      <div class="grid-scroll">
+        <div class="month-labels">{month_row}</div>
+        <div class="grid-wrapper">
+          <div class="day-labels">{day_labels_html}</div>
+          <div class="grid">{"".join(cols_html)}</div>
+        </div>
       </div>
     </section>"""
 
@@ -249,6 +256,9 @@ def generate_html(data: dict, stats: dict, repo_by_date: dict | None = None) -> 
   --glow-2: rgba(0, 109, 50, 0.4);
   --glow-3: rgba(38, 166, 65, 0.4);
   --glow-4: rgba(57, 211, 83, 0.5);
+  --cell-size: 11px;
+  --cell-gap: 2px;
+  --day-label-width: 24px;
 }}
 
 html {{
@@ -505,13 +515,13 @@ body::before {{
 /* Month labels */
 .month-labels {{
   display: flex;
-  gap: 2px;
-  padding-left: 28px;
+  gap: var(--cell-gap);
+  padding-left: calc(var(--day-label-width) + 4px);
   margin-bottom: 4px;
 }}
 
 .month-label {{
-  width: 11px;
+  width: var(--cell-size);
   flex-shrink: 0;
   font-size: 0.5rem;
   font-weight: 300;
@@ -521,19 +531,32 @@ body::before {{
   overflow: visible;
 }}
 
+/* Scrollable grid area on mobile */
+.grid-scroll {{
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) transparent;
+  -webkit-overflow-scrolling: touch;
+}}
+
+.grid-scroll::-webkit-scrollbar {{ height: 4px; }}
+.grid-scroll::-webkit-scrollbar-track {{ background: transparent; }}
+.grid-scroll::-webkit-scrollbar-thumb {{ background: var(--border-default); border-radius: 2px; }}
+
 /* Grid */
 .grid-wrapper {{ display: flex; gap: 4px; }}
 
 .day-labels {{
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--cell-gap);
   flex-shrink: 0;
-  width: 24px;
+  width: var(--day-label-width);
 }}
 
 .day-label {{
-  height: 11px;
+  height: var(--cell-size);
   font-size: 0.45rem;
   font-weight: 300;
   color: var(--text-muted);
@@ -541,12 +564,12 @@ body::before {{
   align-items: center;
 }}
 
-.grid {{ display: flex; gap: 2px; flex-grow: 1; }}
-.grid-col {{ display: flex; flex-direction: column; gap: 2px; }}
+.grid {{ display: flex; gap: var(--cell-gap); flex-grow: 1; }}
+.grid-col {{ display: flex; flex-direction: column; gap: var(--cell-gap); }}
 
 .cell {{
-  width: 11px;
-  height: 11px;
+  width: var(--cell-size);
+  height: var(--cell-size);
   border-radius: 2px;
   position: relative;
   cursor: crosshair;
@@ -647,12 +670,20 @@ footer a:hover {{
 }}
 
 @media (max-width: 768px) {{
+  :root {{
+    --cell-size: 8px;
+    --cell-gap: 2px;
+    --day-label-width: 20px;
+  }}
   .container {{ padding: 0 1rem; }}
   .hero {{ padding: 3rem 0 2rem; }}
+  .hero h1 {{ font-size: 1.6rem; }}
   .stats {{ grid-template-columns: repeat(2, 1fr); }}
-  .cell {{ width: 8px; height: 8px; }}
-  .day-label {{ height: 8px; font-size: 0.4rem; }}
+  .day-label {{ font-size: 0.4rem; }}
+  .month-label {{ font-size: 0.4rem; }}
   .year-nav {{ margin: 0 -1rem; padding-left: 1rem; padding-right: 1rem; }}
+  .year-header {{ flex-wrap: wrap; gap: 0.5rem; }}
+  .year-bar {{ width: 100% !important; margin-left: 0; }}
 }}
 </style>
 </head>
@@ -717,6 +748,10 @@ footer a:hover {{
     <div class="stat">
       <div class="stat-value">{stats['recent_active_pct']}%</div>
       <div class="stat-label">Active (last 3 months)</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value text">{stats['last_active']}</div>
+      <div class="stat-label">Last Active (UTC)</div>
     </div>
   </div>
 
