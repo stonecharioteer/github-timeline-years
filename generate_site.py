@@ -13,6 +13,50 @@ from collections import Counter
 DATA_DIR = Path(__file__).parent / "data"
 OUTPUT = Path(__file__).parent / "index.html"
 
+COLOR_PALETTE = [
+    "#161b22",
+    "#0e2a1a",
+    "#0e4429",
+    "#0a5d2a",
+    "#006d32",
+    "#138a3c",
+    "#1a9c46",
+    "#26a641",
+    "#32c24a",
+    "#39d353",
+]
+
+
+def compute_level_breaks(all_counts: list[int], target_levels: int = 9) -> tuple[list[int], int]:
+    """Compute level breaks using percentile-based binning on non-zero counts.
+
+    The top break is placed at the 95th percentile so that true outliers
+    (top 5% of active days) get the brightest color.
+    Returns (breaks, p95_value).
+    """
+    nonzero = sorted([c for c in all_counts if c > 0])
+    if not nonzero:
+        return [], 0
+    n = len(nonzero)
+    p95_idx = min(int(n * 0.95), n - 1)
+    p95 = nonzero[p95_idx]
+    num_breaks = target_levels - 1
+    breaks = []
+    for i in range(1, num_breaks + 1):
+        if i == num_breaks:
+            idx = p95_idx
+        else:
+            pct = i / num_breaks * 0.95
+            idx = int(n * pct)
+        idx = min(idx, n - 1)
+        val = nonzero[idx]
+        if not breaks or val > breaks[-1]:
+            breaks.append(val)
+    if breaks and breaks[-1] < nonzero[-1]:
+        breaks[-1] = nonzero[-1]
+    breaks = sorted(set(breaks))
+    return breaks, p95
+
 
 def load_all_data() -> tuple[dict, dict]:
     all_data = {}
@@ -71,6 +115,7 @@ def compute_stats(data: dict) -> dict:
     best_year_total = data[best_year]["totalContributions"]
 
     max_daily = 0
+    peak_date = None
     longest_streak = 0
     current_streak = 0
     active_days = 0
@@ -86,7 +131,9 @@ def compute_stats(data: dict) -> dict:
                 all_daily_counts.append(c)
                 dt = datetime.strptime(day["date"], "%Y-%m-%d")
                 weekday_totals[dt.weekday()] += c
-                max_daily = max(max_daily, c)
+                if c >= max_daily:
+                    max_daily = c
+                    peak_date = dt.date()
                 if c > 0:
                     active_days += 1
                     nonzero_counts.append(c)
@@ -100,6 +147,24 @@ def compute_stats(data: dict) -> dict:
 
     total_days = len(all_daily_counts)
     median_on_active = statistics.median(nonzero_counts) if nonzero_counts else 0
+
+    # Compute current streak (most recent consecutive active days)
+    all_days = []
+    for cal in data.values():
+        for week in cal["weeks"]:
+            for day in week["contributionDays"]:
+                all_days.append((datetime.strptime(day["date"], "%Y-%m-%d").date(), day["contributionCount"]))
+    all_days.sort(key=lambda x: x[0], reverse=True)
+    current_streak_len = 0
+    streak_start = None
+    found_first_active = False
+    for d, c in all_days:
+        if c > 0:
+            found_first_active = True
+            current_streak_len += 1
+            streak_start = d
+        elif found_first_active:
+            break
 
     weekday_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     busiest_dow_idx = max(weekday_totals, key=weekday_totals.get)
@@ -139,7 +204,10 @@ def compute_stats(data: dict) -> dict:
         "best_year": best_year,
         "best_year_total": best_year_total,
         "max_daily": max_daily,
+        "peak_date": peak_date.isoformat() if peak_date else "N/A",
         "longest_streak": longest_streak,
+        "current_streak": current_streak_len,
+        "streak_start": streak_start.isoformat() if streak_start else "N/A",
         "active_days": active_days,
         "total_days": total_days,
         "median_on_active": round(median_on_active, 1),
@@ -153,15 +221,16 @@ def compute_stats(data: dict) -> dict:
 MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 
-def get_level(count: int) -> int:
-    if count == 0: return 0
-    if count <= 3: return 1
-    if count <= 6: return 2
-    if count <= 9: return 3
-    return 4
+def get_level(count: int, breaks: list[int]) -> int:
+    if count == 0:
+        return 0
+    for i, b in enumerate(breaks):
+        if count <= b:
+            return i + 1
+    return len(breaks) + 1
 
 
-def build_year_html(year: str, cal: dict, max_total: int) -> str:
+def build_year_html(year: str, cal: dict, max_total: int, breaks: list[int], p95: int, streak_info: dict | None = None) -> str:
     total = cal["totalContributions"]
     weeks = cal["weeks"]
 
@@ -190,13 +259,26 @@ def build_year_html(year: str, cal: dict, max_total: int) -> str:
         days_html = []
         for day in week["contributionDays"]:
             count = day["contributionCount"]
-            level = get_level(count)
+            level = get_level(count, breaks)
+            outlier_attr = ' data-outlier="true"' if count >= p95 else ''
             days_html.append(
-                f'<div class="cell" data-level="{level}" data-date="{day["date"]}" data-count="{count}"></div>'
+                f'<div class="cell" data-level="{level}" data-date="{day["date"]}" data-count="{count}"{outlier_attr}></div>'
             )
         cols_html.append(f'<div class="grid-col">{"".join(days_html)}</div>')
 
     bar_pct = (total / max_total * 100) if max_total > 0 else 0
+
+    streak_line = ""
+    if streak_info:
+        if streak_info['days'] > 0:
+            streak_line = f"""<div class="streak-line">
+      <span class="streak-icon">&#128293;</span>
+      <span class="streak-text">Current streak: <strong>{streak_info['days']}</strong> days since {streak_info['start']}</span>
+    </div>"""
+        else:
+            streak_line = """<div class="streak-line inactive">
+      <span class="streak-text">No active streak</span>
+    </div>"""
 
     return f"""
     <section class="year-section" id="y{year}">
@@ -212,14 +294,64 @@ def build_year_html(year: str, cal: dict, max_total: int) -> str:
           <div class="grid">{"".join(cols_html)}</div>
         </div>
       </div>
+      {streak_line}
     </section>"""
 
 
-def generate_html(data: dict, stats: dict, repo_by_date: dict | None = None) -> str:
+def generate_html(data: dict, stats: dict, repo_by_date: dict | None = None, breaks: list[int] | None = None, p95: int = 0) -> str:
+    breaks = breaks or []
+    n_levels = len(breaks) + 1  # level 0 + breaks
+
+    # Dynamic CSS generation
+    css_vars_lines = []
+    for i, color in enumerate(COLOR_PALETTE[:n_levels]):
+        css_vars_lines.append(f'  --level-{i}: {color};')
+        if i > 0:
+            r = int(color[1:3], 16)
+            g = int(color[3:5], 16)
+            b = int(color[5:7], 16)
+            css_vars_lines.append(f'  --glow-{i}: rgba({r}, {g}, {b}, 0.4);')
+    css_vars = "\n".join(css_vars_lines)
+
+    cell_styles_lines = []
+    for i in range(n_levels):
+        if i == 0:
+            cell_styles_lines.append(f'.cell[data-level="{i}"] {{ background: var(--level-{i}); }}')
+        else:
+            blur = 2 + i
+            hover_blur = 10 + i * 2
+            cell_styles_lines.append(f'.cell[data-level="{i}"] {{ background: var(--level-{i}); box-shadow: 0 0 {blur}px var(--glow-{i}); }}')
+            cell_styles_lines.append(f'.cell:hover[data-level="{i}"] {{ box-shadow: 0 0 {hover_blur}px var(--glow-{i}); }}')
+    cell_styles_lines.append('.cell[data-outlier="true"] { box-shadow: inset 0 0 0 1.5px #e3b341, 0 0 6px rgba(227, 179, 65, 0.35); }')
+    cell_styles_lines.append('.cell:hover[data-outlier="true"] { box-shadow: inset 0 0 0 1.5px #e3b341, 0 0 14px rgba(227, 179, 65, 0.6); }')
+    cell_styles = "\n".join(cell_styles_lines)
+
+    legend_cells = "".join(f'<div class="legend-cell" style="background: var(--level-{i})"></div>' for i in range(n_levels))
+    legend_html = f"""<div class="legend">
+    <span class="legend-label">Less</span>
+    {legend_cells}
+    <span class="legend-label">More</span>
+  </div>"""
+
+    top_idx = n_levels - 1
+    mid_idx = min(n_levels - 1, max(1, n_levels // 2))
+    low_idx = min(n_levels - 1, max(1, n_levels // 4))
+    accent_top = f"var(--level-{top_idx})"
+    accent_mid = f"var(--level-{mid_idx})"
+    accent_low = f"var(--level-{low_idx})"
+
     years = sorted(data.keys(), reverse=True)
     max_total = max(data[y]["totalContributions"] for y in years)
     nav_links = " ".join(f'<a href="#y{y}">{y}</a>' for y in years)
-    year_sections = "\n".join(build_year_html(y, data[y], max_total) for y in years)
+    most_recent_year = years[0]
+    streak_info = {
+        'days': stats['current_streak'],
+        'start': stats['streak_start'],
+    }
+    year_sections = "\n".join(
+        build_year_html(y, data[y], max_total, breaks, p95, streak_info if y == most_recent_year else None)
+        for y in years
+    )
     from_year = years[-1]
     to_year = years[0]
     num_years = len(years)
@@ -247,15 +379,7 @@ def generate_html(data: dict, stats: dict, repo_by_date: dict | None = None) -> 
   --text-primary: #e6edf3;
   --text-secondary: #8b949e;
   --text-muted: #484f58;
-  --green-0: #161b22;
-  --green-1: #0e4429;
-  --green-2: #006d32;
-  --green-3: #26a641;
-  --green-4: #39d353;
-  --glow-1: rgba(14, 68, 41, 0.3);
-  --glow-2: rgba(0, 109, 50, 0.4);
-  --glow-3: rgba(38, 166, 65, 0.4);
-  --glow-4: rgba(57, 211, 83, 0.5);
+{css_vars}
   --cell-size: 11px;
   --cell-gap: 2px;
   --day-label-width: 24px;
@@ -356,7 +480,7 @@ body::before {{
 }}
 
 .hero h1 span {{
-  background: linear-gradient(135deg, var(--green-3), var(--green-4));
+  background: linear-gradient(135deg, {accent_mid}, {accent_top});
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -374,7 +498,7 @@ body::before {{
 /* Stats */
 .stats {{
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(5, 1fr);
   gap: 1px;
   margin: 2.5rem 0;
   background: var(--border-muted);
@@ -396,7 +520,7 @@ body::before {{
 .stat-value {{
   font-size: 1.4rem;
   font-weight: 600;
-  color: var(--green-4);
+  color: {accent_top};
   line-height: 1;
   margin-bottom: 0.4rem;
 }}
@@ -452,7 +576,7 @@ body::before {{
 }}
 
 .year-nav a.active {{
-  color: var(--green-4);
+  color: {accent_top};
   background: var(--bg-subtle);
   border-color: var(--border-default);
 }}
@@ -496,20 +620,46 @@ body::before {{
   color: var(--text-secondary);
 }}
 
-.year-total strong {{ color: var(--green-3); font-weight: 600; }}
+.year-total strong {{ color: {accent_mid}; font-weight: 600; }}
 
 .year-bar {{
   height: 2px;
-  background: var(--green-1);
+  background: {accent_low};
   border-radius: 1px;
   margin-left: auto;
 }}
 
 .year-bar-inner {{
   height: 100%;
-  background: linear-gradient(90deg, var(--green-2), var(--green-4));
+  background: linear-gradient(90deg, {accent_low}, {accent_top});
   border-radius: 1px;
   transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+}}
+
+/* Streak line */
+.streak-line {{
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding-left: calc(var(--day-label-width) + 4px);
+  font-size: 0.65rem;
+  font-weight: 300;
+  color: var(--text-secondary);
+}}
+
+.streak-line.inactive {{
+  color: var(--text-muted);
+}}
+
+.streak-icon {{
+  font-size: 0.8rem;
+  line-height: 1;
+}}
+
+.streak-text strong {{
+  color: {accent_top};
+  font-weight: 600;
 }}
 
 /* Month labels */
@@ -582,16 +732,7 @@ body::before {{
 
 .cell:hover {{ transform: scale(1.8); z-index: 10; }}
 
-.cell[data-level="0"] {{ background: var(--green-0); }}
-.cell[data-level="1"] {{ background: var(--green-1); box-shadow: 0 0 3px var(--glow-1); }}
-.cell[data-level="2"] {{ background: var(--green-2); box-shadow: 0 0 4px var(--glow-2); }}
-.cell[data-level="3"] {{ background: var(--green-3); box-shadow: 0 0 6px var(--glow-3); }}
-.cell[data-level="4"] {{ background: var(--green-4); box-shadow: 0 0 8px var(--glow-4); }}
-
-.cell:hover[data-level="1"] {{ box-shadow: 0 0 12px var(--glow-1); }}
-.cell:hover[data-level="2"] {{ box-shadow: 0 0 14px var(--glow-2); }}
-.cell:hover[data-level="3"] {{ box-shadow: 0 0 16px var(--glow-3); }}
-.cell:hover[data-level="4"] {{ box-shadow: 0 0 20px var(--glow-4); }}
+{cell_styles}
 
 /* Tooltip */
 .tooltip {{
@@ -612,7 +753,7 @@ body::before {{
 
 .tooltip.show {{ opacity: 1; }}
 .tt-header {{ display: flex; gap: 0.3rem; white-space: nowrap; }}
-.tt-header .tt-count {{ color: var(--green-4); font-weight: 600; }}
+.tt-header .tt-count {{ color: {accent_top}; font-weight: 600; }}
 .tt-header .tt-text {{ color: var(--text-secondary); }}
 .tt-repos {{
   margin-top: 0.35rem;
@@ -629,7 +770,7 @@ body::before {{
   white-space: nowrap;
 }}
 .tt-repo-name {{ color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; }}
-.tt-repo-count {{ color: var(--green-3); font-weight: 600; flex-shrink: 0; }}
+.tt-repo-count {{ color: {accent_mid}; font-weight: 600; flex-shrink: 0; }}
 
 /* Legend */
 .legend {{
@@ -660,8 +801,8 @@ footer a {{
 }}
 
 footer a:hover {{
-  color: var(--green-3);
-  border-color: var(--green-2);
+  color: {accent_mid};
+  border-color: {accent_low};
 }}
 
 @keyframes fadeUp {{
@@ -726,8 +867,12 @@ footer a:hover {{
       <div class="stat-label">Longest Streak (days)</div>
     </div>
     <div class="stat">
+      <div class="stat-value" data-count="{stats['current_streak']}">0</div>
+      <div class="stat-label">Current Streak (since {stats['streak_start']})</div>
+    </div>
+    <div class="stat">
       <div class="stat-value" data-count="{stats['max_daily']}">0</div>
-      <div class="stat-label">Peak Day</div>
+      <div class="stat-label">Peak Day ({stats['peak_date']})</div>
     </div>
     <div class="stat">
       <div class="stat-value" data-count="{stats['active_days']}">0</div>
@@ -763,18 +908,10 @@ footer a:hover {{
     {year_sections}
   </div>
 
-  <div class="legend">
-    <span class="legend-label">Less</span>
-    <div class="legend-cell" style="background: var(--green-0)"></div>
-    <div class="legend-cell" style="background: var(--green-1)"></div>
-    <div class="legend-cell" style="background: var(--green-2)"></div>
-    <div class="legend-cell" style="background: var(--green-3)"></div>
-    <div class="legend-cell" style="background: var(--green-4)"></div>
-    <span class="legend-label">More</span>
-  </div>
+{legend_html}
 
   <footer>
-    <p><a href="contribution_timeline.png" download style="color:var(--green-3);text-decoration:none;border-bottom:1px solid var(--green-1);">Download Infographic</a></p>
+    <p><a href="contribution_timeline.png" download style="color:{accent_mid};text-decoration:none;border-bottom:1px solid {accent_low};">Download Infographic</a></p>
     <p style="margin-top:0.5rem;">Data fetched via GitHub GraphQL API &middot; Includes private contributions</p>
     <p style="margin-top:0.5rem;"><a href="https://github.com/stonecharioteer/github-timeline-years" style="color:var(--text-secondary);text-decoration:none;border-bottom:1px solid var(--border-default);">View source on GitHub</a></p>
   </footer>
@@ -904,7 +1041,15 @@ def main():
     data, repo_by_date = load_all_data()
     stats = compute_stats(data)
 
-    html = generate_html(data, stats, repo_by_date)
+    # Collect all daily counts for dynamic level breaks
+    all_counts = []
+    for cal in data.values():
+        for week in cal["weeks"]:
+            for day in week["contributionDays"]:
+                all_counts.append(day["contributionCount"])
+    breaks, p95 = compute_level_breaks(all_counts)
+
+    html = generate_html(data, stats, repo_by_date, breaks, p95)
     OUTPUT.write_text(html)
     print(f"Generated {OUTPUT} ({OUTPUT.stat().st_size / 1024:.0f} KB)")
 
