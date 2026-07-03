@@ -31,10 +31,62 @@ BORDER = "#30363d"
 TEXT_PRIMARY = "#e6edf3"
 TEXT_SECONDARY = "#8b949e"
 TEXT_MUTED = "#484f58"
-GREEN_ACCENT = "#39d353"
 
-# GitHub dark theme contribution colors
-COLOR_MAP = ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"]
+# Green-only contribution color palette (dark → bright)
+COLOR_MAP = [
+    "#161b22",
+    "#0e2a1a",
+    "#0e4429",
+    "#0a5d2a",
+    "#006d32",
+    "#138a3c",
+    "#1a9c46",
+    "#26a641",
+    "#32c24a",
+    "#39d353",
+]
+
+GREEN_ACCENT = COLOR_MAP[-1]
+
+
+def compute_level_breaks(all_counts: list[int], target_levels: int = 9) -> tuple[list[int], int]:
+    """Compute level breaks using percentile-based binning on non-zero counts.
+
+    The top break is placed at the 95th percentile so that true outliers
+    (top 5% of active days) get the brightest color.
+    Returns (breaks, p95_value).
+    """
+    nonzero = sorted([c for c in all_counts if c > 0])
+    if not nonzero:
+        return [], 0
+    n = len(nonzero)
+    p95_idx = min(int(n * 0.95), n - 1)
+    p95 = nonzero[p95_idx]
+    num_breaks = target_levels - 1
+    breaks = []
+    for i in range(1, num_breaks + 1):
+        if i == num_breaks:
+            idx = p95_idx
+        else:
+            pct = i / num_breaks * 0.95
+            idx = int(n * pct)
+        idx = min(idx, n - 1)
+        val = nonzero[idx]
+        if not breaks or val > breaks[-1]:
+            breaks.append(val)
+    if breaks and breaks[-1] < nonzero[-1]:
+        breaks[-1] = nonzero[-1]
+    breaks = sorted(set(breaks))
+    return breaks, p95
+
+
+def get_level(count: int, breaks: list[int]) -> int:
+    if count == 0:
+        return 0
+    for i, b in enumerate(breaks):
+        if count <= b:
+            return i + 1
+    return len(breaks) + 1
 MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 
@@ -45,8 +97,9 @@ def load_year(year: int) -> dict:
     return data["data"]["user"]["contributionsCollection"]["contributionCalendar"]
 
 
-def build_year_grid(calendar: dict) -> tuple[np.ndarray, list[dict], int]:
+def build_year_grid(calendar: dict, breaks: list[int], p95: int) -> tuple[np.ndarray, np.ndarray, list[dict], int]:
     grid = np.zeros((7, 53), dtype=int)
+    outlier_grid = np.zeros((7, 53), dtype=bool)
     total = calendar["totalContributions"]
     days = []
 
@@ -57,20 +110,12 @@ def build_year_grid(calendar: dict) -> tuple[np.ndarray, list[dict], int]:
             date = datetime.strptime(day["date"], "%Y-%m-%d")
             dow = (date.weekday() + 1) % 7
             count = day["contributionCount"]
-            if count == 0:
-                level = 0
-            elif count <= 3:
-                level = 1
-            elif count <= 6:
-                level = 2
-            elif count <= 9:
-                level = 3
-            else:
-                level = 4
+            level = get_level(count, breaks)
             grid[dow, week_idx] = level
+            outlier_grid[dow, week_idx] = count >= p95
             days.append({"date": date, "count": count, "week": week_idx, "dow": dow})
 
-    return grid, days, total
+    return grid, outlier_grid, days, total
 
 
 def find_month_starts(days_data: list[dict]) -> list[tuple[int, str]]:
@@ -92,18 +137,32 @@ def main():
     args = parser.parse_args()
 
     years = list(range(args.to_year, args.from_year - 1, -1))
-    grids, all_days, totals = [], [], []
+
+    # First pass: load calendars and collect all counts for dynamic breaks
+    calendars = []
+    all_counts = []
     for year in years:
         cal = load_year(year)
-        grid, days, total = build_year_grid(cal)
+        calendars.append(cal)
+        for week in cal["weeks"]:
+            for day in week["contributionDays"]:
+                all_counts.append(day["contributionCount"])
+    breaks, p95 = compute_level_breaks(all_counts)
+
+    # Second pass: build grids using dynamic breaks
+    grids, outlier_grids, all_days, totals = [], [], [], []
+    for cal in calendars:
+        grid, outlier_grid, days, total = build_year_grid(cal, breaks, p95)
         grids.append(grid)
+        outlier_grids.append(outlier_grid)
         all_days.append(days)
         totals.append(total)
 
     grand_total = sum(totals)
     max_total = max(totals)
 
-    cmap = mcolors.ListedColormap(COLOR_MAP)
+    n_levels = len(breaks) + 1
+    cmap = mcolors.ListedColormap(COLOR_MAP[:n_levels])
     n = len(years)
 
     # Sizing: calculate to ensure square cells
@@ -179,7 +238,7 @@ def main():
     day_labels = ["", "Mon", "", "Wed", "", "Fri", ""]
     y_top = 1 - header_h / fig_h
 
-    for idx, (year, grid, days, total) in enumerate(zip(years, grids, all_days, totals)):
+    for idx, (year, grid, outlier_grid, days, total) in enumerate(zip(years, grids, outlier_grids, all_days, totals)):
         row_top = y_top - idx * (row_h / fig_h)
         ax_left = 0.06
         ax_bottom = row_top - axes_height_frac - 0.2 / fig_h
@@ -190,9 +249,12 @@ def main():
         for wi in range(53):
             for di in range(7):
                 color = COLOR_MAP[grid[di, wi]]
+                is_outlier = outlier_grid[di, wi]
                 rect = FancyBboxPatch(
                     (wi - 0.43, di - 0.43), 0.86, 0.86,
-                    boxstyle="round,pad=0.04", facecolor=color, edgecolor="none",
+                    boxstyle="round,pad=0.04", facecolor=color,
+                    edgecolor="#e3b341" if is_outlier else "none",
+                    linewidth=1.5 if is_outlier else 0,
                 )
                 ax.add_patch(rect)
 
@@ -276,14 +338,14 @@ def main():
     # ── Legend ──
     legend_y = 0.015
     fig.text(0.42, legend_y, "Less", fontsize=6, color=TEXT_MUTED, fontfamily="monospace", va="center")
-    for i, color in enumerate(COLOR_MAP):
+    for i, color in enumerate(COLOR_MAP[:n_levels]):
         rect = FancyBboxPatch(
             (0.45 + i * 0.02, legend_y - 0.005), 0.012, 0.012,
             boxstyle="round,pad=0.001", facecolor=color, edgecolor="none",
             transform=fig.transFigure,
         )
         fig.patches.append(rect)
-    fig.text(0.45 + 5 * 0.02, legend_y, "More", fontsize=6, color=TEXT_MUTED, fontfamily="monospace", va="center")
+    fig.text(0.45 + n_levels * 0.02, legend_y, "More", fontsize=6, color=TEXT_MUTED, fontfamily="monospace", va="center")
 
     # ── GitHub repo link ──
     fig.text(0.5, legend_y - 0.025, "github.com/stonecharioteer/github-timeline-years",
