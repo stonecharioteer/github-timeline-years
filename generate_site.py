@@ -254,7 +254,6 @@ def build_year_html(year: str, cal: dict, max_total: int, breaks: list[int], p95
     day_labels = ["Sun", "", "Tue", "", "Thu", "", "Sat"]
     day_labels_html = "".join(f'<div class="day-label">{d}</div>' for d in day_labels)
 
-    today_str = date.today().isoformat()
     cols_html = []
     for week in weeks:
         days_html = []
@@ -262,9 +261,8 @@ def build_year_html(year: str, cal: dict, max_total: int, breaks: list[int], p95
             count = day["contributionCount"]
             level = get_level(count, breaks)
             outlier_attr = ' data-outlier="true"' if count >= p95 else ''
-            today_attr = ' data-today="true"' if day["date"] == today_str else ''
             days_html.append(
-                f'<div class="cell" data-level="{level}" data-date="{day["date"]}" data-count="{count}"{outlier_attr}{today_attr}></div>'
+                f'<div class="cell" data-level="{level}" data-date="{day["date"]}" data-count="{count}"{outlier_attr}></div>'
             )
         cols_html.append(f'<div class="grid-col">{"".join(days_html)}</div>')
 
@@ -1003,6 +1001,11 @@ const statsObserver = new IntersectionObserver((entries) => {{
   }}
 }}, {{ threshold: 0.5 }});
 statsObserver.observe(document.querySelector('.stats'));
+
+// Highlight today's cell dynamically based on client's clock
+const todayIso = new Date().toISOString().slice(0, 10);
+const todayCell = document.querySelector('.cell[data-date="' + todayIso + '"]');
+if (todayCell) todayCell.dataset.today = 'true';
 </script>
 </body>
 </html>"""
