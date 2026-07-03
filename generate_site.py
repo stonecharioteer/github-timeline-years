@@ -684,7 +684,7 @@ body::before {{
 .cell {{
   width: 100%;
   aspect-ratio: 1;
-  border-radius: 2px;
+  border-radius: 4px;
   position: relative;
   cursor: crosshair;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -749,7 +749,7 @@ body::before {{
 
 .legend-label {{ font-size: 0.5rem; font-weight: 300; color: var(--text-muted); }}
 
-.legend-cell {{ width: 11px; height: 11px; border-radius: 2px; }}
+.legend-cell {{ width: 11px; height: 11px; border-radius: 3px; }}
 
 footer {{
   border-top: 1px solid var(--border-muted);
@@ -790,6 +790,8 @@ footer a:hover {{
   .year-nav {{ margin: 0 -1rem; padding-left: 1rem; padding-right: 1rem; }}
   .year-header {{ flex-wrap: wrap; gap: 0.5rem; }}
   .streak-line {{ padding-left: 0; }}
+  .cell {{ border-radius: 2px; }}
+  .legend-cell {{ border-radius: 2px; }}
 }}
 </style>
 </head>
