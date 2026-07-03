@@ -266,8 +266,6 @@ def build_year_html(year: str, cal: dict, max_total: int, breaks: list[int], p95
             )
         cols_html.append(f'<div class="grid-col">{"".join(days_html)}</div>')
 
-    bar_pct = (total / max_total * 100) if max_total > 0 else 0
-
     streak_line = ""
     if streak_info:
         if streak_info['days'] > 0:
@@ -279,20 +277,16 @@ def build_year_html(year: str, cal: dict, max_total: int, breaks: list[int], p95
             streak_line = """<div class="streak-line inactive">
       <span class="streak-text">No active streak</span>
     </div>"""
-
     return f"""
     <section class="year-section" id="y{year}">
       <div class="year-header">
         <h2>{year}</h2>
         <span class="year-total"><strong>{total:,}</strong> contributions</span>
-        <div class="year-bar" style="width:200px"><div class="year-bar-inner" style="width:{bar_pct:.1f}%"></div></div>
       </div>
-      <div class="grid-scroll">
-        <div class="month-labels">{month_row}</div>
-        <div class="grid-wrapper">
-          <div class="day-labels">{day_labels_html}</div>
-          <div class="grid">{"".join(cols_html)}</div>
-        </div>
+      <div class="month-labels">{month_row}</div>
+      <div class="grid-wrapper">
+        <div class="day-labels">{day_labels_html}</div>
+        <div class="grid">{"".join(cols_html)}</div>
       </div>
       {streak_line}
     </section>"""
@@ -622,20 +616,6 @@ body::before {{
 
 .year-total strong {{ color: {accent_mid}; font-weight: 600; }}
 
-.year-bar {{
-  height: 2px;
-  background: {accent_low};
-  border-radius: 1px;
-  margin-left: auto;
-}}
-
-.year-bar-inner {{
-  height: 100%;
-  background: linear-gradient(90deg, {accent_low}, {accent_top});
-  border-radius: 1px;
-  transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
-}}
-
 /* Streak line */
 .streak-line {{
   display: flex;
@@ -661,7 +641,6 @@ body::before {{
   color: {accent_top};
   font-weight: 600;
 }}
-
 /* Month labels */
 .month-labels {{
   display: flex;
@@ -680,19 +659,6 @@ body::before {{
   white-space: nowrap;
   overflow: visible;
 }}
-
-/* Scrollable grid area on mobile */
-.grid-scroll {{
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-default) transparent;
-  -webkit-overflow-scrolling: touch;
-}}
-
-.grid-scroll::-webkit-scrollbar {{ height: 4px; }}
-.grid-scroll::-webkit-scrollbar-track {{ background: transparent; }}
-.grid-scroll::-webkit-scrollbar-thumb {{ background: var(--border-default); border-radius: 2px; }}
 
 /* Grid */
 .grid-wrapper {{ display: flex; gap: 4px; }}
@@ -714,7 +680,7 @@ body::before {{
   align-items: center;
 }}
 
-.grid {{ display: flex; gap: var(--cell-gap); flex-grow: 1; }}
+.grid {{ display: flex; gap: var(--cell-gap); }}
 .grid-col {{ display: flex; flex-direction: column; gap: var(--cell-gap); }}
 
 .cell {{
@@ -812,19 +778,21 @@ footer a:hover {{
 
 @media (max-width: 768px) {{
   :root {{
-    --cell-size: 8px;
-    --cell-gap: 2px;
+    --cell-size: 4px;
+    --cell-gap: 1px;
     --day-label-width: 20px;
   }}
   .container {{ padding: 0 1rem; }}
   .hero {{ padding: 3rem 0 2rem; }}
   .hero h1 {{ font-size: 1.6rem; }}
   .stats {{ grid-template-columns: repeat(2, 1fr); }}
-  .day-label {{ font-size: 0.4rem; }}
-  .month-label {{ font-size: 0.4rem; }}
+  .day-label {{ font-size: 0.35rem; }}
+  .month-label {{ font-size: 0.35rem; }}
+  .day-labels {{ display: none; }}
+  .month-labels {{ padding-left: 0; }}
   .year-nav {{ margin: 0 -1rem; padding-left: 1rem; padding-right: 1rem; }}
   .year-header {{ flex-wrap: wrap; gap: 0.5rem; }}
-  .year-bar {{ width: 100% !important; margin-left: 0; }}
+  .streak-line {{ padding-left: 0; }}
 }}
 </style>
 </head>
