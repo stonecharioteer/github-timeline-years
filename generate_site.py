@@ -374,7 +374,6 @@ def generate_html(data: dict, stats: dict, repo_by_date: dict | None = None, bre
   --text-secondary: #8b949e;
   --text-muted: #484f58;
 {css_vars}
-  --cell-size: 11px;
   --cell-gap: 2px;
   --day-label-width: 24px;
 }}
@@ -650,8 +649,7 @@ body::before {{
 }}
 
 .month-label {{
-  width: var(--cell-size);
-  flex-shrink: 0;
+  flex: 1;
   font-size: 0.5rem;
   font-weight: 300;
   color: var(--text-muted);
@@ -661,7 +659,7 @@ body::before {{
 }}
 
 /* Grid */
-.grid-wrapper {{ display: flex; gap: 4px; }}
+.grid-wrapper {{ display: flex; gap: 4px; align-items: stretch; }}
 
 .day-labels {{
   display: flex;
@@ -672,20 +670,20 @@ body::before {{
 }}
 
 .day-label {{
-  height: var(--cell-size);
+  flex: 1;
+  display: flex;
+  align-items: center;
   font-size: 0.45rem;
   font-weight: 300;
   color: var(--text-muted);
-  display: flex;
-  align-items: center;
 }}
 
-.grid {{ display: flex; gap: var(--cell-gap); }}
-.grid-col {{ display: flex; flex-direction: column; gap: var(--cell-gap); }}
+.grid {{ display: flex; gap: var(--cell-gap); flex: 1; }}
+.grid-col {{ display: flex; flex-direction: column; gap: var(--cell-gap); flex: 1; }}
 
 .cell {{
-  width: var(--cell-size);
-  height: var(--cell-size);
+  width: 100%;
+  aspect-ratio: 1;
   border-radius: 2px;
   position: relative;
   cursor: crosshair;
@@ -778,7 +776,6 @@ footer a:hover {{
 
 @media (max-width: 768px) {{
   :root {{
-    --cell-size: 4px;
     --cell-gap: 1px;
     --day-label-width: 20px;
   }}
