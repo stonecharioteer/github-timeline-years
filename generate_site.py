@@ -254,6 +254,7 @@ def build_year_html(year: str, cal: dict, max_total: int, breaks: list[int], p95
     day_labels = ["Sun", "", "Tue", "", "Thu", "", "Sat"]
     day_labels_html = "".join(f'<div class="day-label">{d}</div>' for d in day_labels)
 
+    today_str = date.today().isoformat()
     cols_html = []
     for week in weeks:
         days_html = []
@@ -261,8 +262,9 @@ def build_year_html(year: str, cal: dict, max_total: int, breaks: list[int], p95
             count = day["contributionCount"]
             level = get_level(count, breaks)
             outlier_attr = ' data-outlier="true"' if count >= p95 else ''
+            today_attr = ' data-today="true"' if day["date"] == today_str else ''
             days_html.append(
-                f'<div class="cell" data-level="{level}" data-date="{day["date"]}" data-count="{count}"{outlier_attr}></div>'
+                f'<div class="cell" data-level="{level}" data-date="{day["date"]}" data-count="{count}"{outlier_attr}{today_attr}></div>'
             )
         cols_html.append(f'<div class="grid-col">{"".join(days_html)}</div>')
 
@@ -318,6 +320,8 @@ def generate_html(data: dict, stats: dict, repo_by_date: dict | None = None, bre
             cell_styles_lines.append(f'.cell:hover[data-level="{i}"] {{ box-shadow: 0 0 {hover_blur}px var(--glow-{i}); }}')
     cell_styles_lines.append('.cell[data-outlier="true"] { box-shadow: inset 0 0 0 1.5px #e3b341, 0 0 6px rgba(227, 179, 65, 0.35); }')
     cell_styles_lines.append('.cell:hover[data-outlier="true"] { box-shadow: inset 0 0 0 1.5px #e3b341, 0 0 14px rgba(227, 179, 65, 0.6); }')
+    cell_styles_lines.append('.cell[data-today="true"] { box-shadow: inset 0 0 0 2px var(--text-primary); }')
+    cell_styles_lines.append('.cell:hover[data-today="true"] { box-shadow: inset 0 0 0 2px var(--text-primary), 0 0 12px rgba(230, 237, 243, 0.25); }')
     cell_styles = "\n".join(cell_styles_lines)
 
     legend_cells = "".join(f'<div class="legend-cell" style="background: var(--level-{i})"></div>' for i in range(n_levels))
