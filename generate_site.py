@@ -196,14 +196,11 @@ def build_year_html(year: str, cal: dict, max_total: int) -> str:
             )
         cols_html.append(f'<div class="grid-col">{"".join(days_html)}</div>')
 
-    bar_pct = (total / max_total * 100) if max_total > 0 else 0
-
     return f"""
     <section class="year-section" id="y{year}">
       <div class="year-header">
         <h2>{year}</h2>
         <span class="year-total"><strong>{total:,}</strong> contributions</span>
-        <div class="year-bar" style="width:200px"><div class="year-bar-inner" style="width:{bar_pct:.1f}%"></div></div>
       </div>
       <div class="grid-scroll">
         <div class="month-labels">{month_row}</div>
@@ -498,20 +495,6 @@ body::before {{
 
 .year-total strong {{ color: var(--green-3); font-weight: 600; }}
 
-.year-bar {{
-  height: 2px;
-  background: var(--green-1);
-  border-radius: 1px;
-  margin-left: auto;
-}}
-
-.year-bar-inner {{
-  height: 100%;
-  background: linear-gradient(90deg, var(--green-2), var(--green-4));
-  border-radius: 1px;
-  transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
-}}
-
 /* Month labels */
 .month-labels {{
   display: flex;
@@ -535,14 +518,12 @@ body::before {{
 .grid-scroll {{
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-default) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
 }}
 
-.grid-scroll::-webkit-scrollbar {{ height: 4px; }}
-.grid-scroll::-webkit-scrollbar-track {{ background: transparent; }}
-.grid-scroll::-webkit-scrollbar-thumb {{ background: var(--border-default); border-radius: 2px; }}
+.grid-scroll::-webkit-scrollbar {{ display: none; }}
 
 /* Grid */
 .grid-wrapper {{ display: flex; gap: 4px; }}
@@ -683,7 +664,6 @@ footer a:hover {{
   .month-label {{ font-size: 0.4rem; }}
   .year-nav {{ margin: 0 -1rem; padding-left: 1rem; padding-right: 1rem; }}
   .year-header {{ flex-wrap: wrap; gap: 0.5rem; }}
-  .year-bar {{ width: 100% !important; margin-left: 0; }}
 }}
 </style>
 </head>
