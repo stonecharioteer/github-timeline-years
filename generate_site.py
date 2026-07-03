@@ -318,6 +318,8 @@ def generate_html(data: dict, stats: dict, repo_by_date: dict | None = None, bre
             cell_styles_lines.append(f'.cell:hover[data-level="{i}"] {{ box-shadow: 0 0 {hover_blur}px var(--glow-{i}); }}')
     cell_styles_lines.append('.cell[data-outlier="true"] { box-shadow: inset 0 0 0 1.5px #e3b341, 0 0 6px rgba(227, 179, 65, 0.35); }')
     cell_styles_lines.append('.cell:hover[data-outlier="true"] { box-shadow: inset 0 0 0 1.5px #e3b341, 0 0 14px rgba(227, 179, 65, 0.6); }')
+    cell_styles_lines.append('.cell[data-today="true"] { box-shadow: inset 0 0 0 2px var(--text-primary); }')
+    cell_styles_lines.append('.cell:hover[data-today="true"] { box-shadow: inset 0 0 0 2px var(--text-primary), 0 0 12px rgba(230, 237, 243, 0.25); }')
     cell_styles = "\n".join(cell_styles_lines)
 
     legend_cells = "".join(f'<div class="legend-cell" style="background: var(--level-{i})"></div>' for i in range(n_levels))
@@ -374,7 +376,6 @@ def generate_html(data: dict, stats: dict, repo_by_date: dict | None = None, bre
   --text-secondary: #8b949e;
   --text-muted: #484f58;
 {css_vars}
-  --cell-size: 11px;
   --cell-gap: 2px;
   --day-label-width: 24px;
 }}
@@ -650,8 +651,7 @@ body::before {{
 }}
 
 .month-label {{
-  width: var(--cell-size);
-  flex-shrink: 0;
+  flex: 1;
   font-size: 0.5rem;
   font-weight: 300;
   color: var(--text-muted);
@@ -661,7 +661,7 @@ body::before {{
 }}
 
 /* Grid */
-.grid-wrapper {{ display: flex; gap: 4px; }}
+.grid-wrapper {{ display: flex; gap: 4px; align-items: stretch; }}
 
 .day-labels {{
   display: flex;
@@ -672,21 +672,21 @@ body::before {{
 }}
 
 .day-label {{
-  height: var(--cell-size);
+  flex: 1;
+  display: flex;
+  align-items: center;
   font-size: 0.45rem;
   font-weight: 300;
   color: var(--text-muted);
-  display: flex;
-  align-items: center;
 }}
 
-.grid {{ display: flex; gap: var(--cell-gap); }}
-.grid-col {{ display: flex; flex-direction: column; gap: var(--cell-gap); }}
+.grid {{ display: flex; gap: var(--cell-gap); flex: 1; }}
+.grid-col {{ display: flex; flex-direction: column; gap: var(--cell-gap); flex: 1; }}
 
 .cell {{
-  width: var(--cell-size);
-  height: var(--cell-size);
-  border-radius: 2px;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 4px;
   position: relative;
   cursor: crosshair;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -751,7 +751,7 @@ body::before {{
 
 .legend-label {{ font-size: 0.5rem; font-weight: 300; color: var(--text-muted); }}
 
-.legend-cell {{ width: 11px; height: 11px; border-radius: 2px; }}
+.legend-cell {{ width: 11px; height: 11px; border-radius: 3px; }}
 
 footer {{
   border-top: 1px solid var(--border-muted);
@@ -778,7 +778,6 @@ footer a:hover {{
 
 @media (max-width: 768px) {{
   :root {{
-    --cell-size: 4px;
     --cell-gap: 1px;
     --day-label-width: 20px;
   }}
@@ -793,6 +792,8 @@ footer a:hover {{
   .year-nav {{ margin: 0 -1rem; padding-left: 1rem; padding-right: 1rem; }}
   .year-header {{ flex-wrap: wrap; gap: 0.5rem; }}
   .streak-line {{ padding-left: 0; }}
+  .cell {{ border-radius: 2px; }}
+  .legend-cell {{ border-radius: 2px; }}
 }}
 </style>
 </head>
@@ -1000,6 +1001,11 @@ const statsObserver = new IntersectionObserver((entries) => {{
   }}
 }}, {{ threshold: 0.5 }});
 statsObserver.observe(document.querySelector('.stats'));
+
+// Highlight today's cell dynamically based on client's clock
+const todayIso = new Date().toISOString().slice(0, 10);
+const todayCell = document.querySelector('.cell[data-date="' + todayIso + '"]');
+if (todayCell) todayCell.dataset.today = 'true';
 </script>
 </body>
 </html>"""
