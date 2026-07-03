@@ -202,12 +202,10 @@ def build_year_html(year: str, cal: dict, max_total: int) -> str:
         <h2>{year}</h2>
         <span class="year-total"><strong>{total:,}</strong> contributions</span>
       </div>
-      <div class="grid-scroll">
-        <div class="month-labels">{month_row}</div>
-        <div class="grid-wrapper">
-          <div class="day-labels">{day_labels_html}</div>
-          <div class="grid">{"".join(cols_html)}</div>
-        </div>
+      <div class="month-labels">{month_row}</div>
+      <div class="grid-wrapper">
+        <div class="day-labels">{day_labels_html}</div>
+        <div class="grid">{"".join(cols_html)}</div>
       </div>
     </section>"""
 
@@ -514,17 +512,6 @@ body::before {{
   overflow: visible;
 }}
 
-/* Scrollable grid area on mobile */
-.grid-scroll {{
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  -webkit-overflow-scrolling: touch;
-}}
-
-.grid-scroll::-webkit-scrollbar {{ display: none; }}
-
 /* Grid */
 .grid-wrapper {{ display: flex; gap: 4px; }}
 
@@ -545,7 +532,7 @@ body::before {{
   align-items: center;
 }}
 
-.grid {{ display: flex; gap: var(--cell-gap); flex-grow: 1; }}
+.grid {{ display: flex; gap: var(--cell-gap); }}
 .grid-col {{ display: flex; flex-direction: column; gap: var(--cell-gap); }}
 
 .cell {{
@@ -652,16 +639,18 @@ footer a:hover {{
 
 @media (max-width: 768px) {{
   :root {{
-    --cell-size: 8px;
-    --cell-gap: 2px;
+    --cell-size: 4px;
+    --cell-gap: 1px;
     --day-label-width: 20px;
   }}
   .container {{ padding: 0 1rem; }}
   .hero {{ padding: 3rem 0 2rem; }}
   .hero h1 {{ font-size: 1.6rem; }}
   .stats {{ grid-template-columns: repeat(2, 1fr); }}
-  .day-label {{ font-size: 0.4rem; }}
-  .month-label {{ font-size: 0.4rem; }}
+  .day-label {{ font-size: 0.35rem; }}
+  .month-label {{ font-size: 0.35rem; }}
+  .day-labels {{ display: none; }}
+  .month-labels {{ padding-left: 0; }}
   .year-nav {{ margin: 0 -1rem; padding-left: 1rem; padding-right: 1rem; }}
   .year-header {{ flex-wrap: wrap; gap: 0.5rem; }}
 }}
